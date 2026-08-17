@@ -1,3 +1,5 @@
+import { parseApiError } from './errors';
+
 export type AdminSession = {
   accessToken: string;
   refreshToken: string;
@@ -58,8 +60,7 @@ export async function startAdminLogin(identifier: string, password: string): Pro
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Signin failed');
+    throw new Error(parseApiError(await response.text(), 'Signin failed'));
   }
 
   const json = await response.json();
@@ -88,7 +89,7 @@ export async function completeAdminLogin(code: string, state: string): Promise<A
     }),
   });
 
-  if (!tokenResp.ok) throw new Error(await tokenResp.text());
+  if (!tokenResp.ok) throw new Error(parseApiError(await tokenResp.text(), 'Token exchange failed'));
   const tokenJson = await tokenResp.json();
   const tokens = tokenJson?.data ?? tokenJson;
   const accessToken = tokens?.access_token;
@@ -98,7 +99,7 @@ export async function completeAdminLogin(code: string, state: string): Promise<A
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!infoResp.ok) throw new Error('Failed to load userinfo');
+  if (!infoResp.ok) throw new Error(parseApiError(await infoResp.text(), 'Failed to load userinfo'));
   const infoJson = await infoResp.json();
   const info = infoJson?.data ?? infoJson;
 

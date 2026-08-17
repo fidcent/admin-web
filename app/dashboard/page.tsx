@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { errorFromUnknown } from '@/lib/errors';
 import { clearAdminSession, getAdminSession } from '@/lib/oidc';
 
 type MarginRule = {
@@ -65,7 +66,7 @@ export default function AdminDashboardPage() {
       setInterests(interestResp?.data?.interests || []);
       setError('');
     } catch (err: any) {
-      setError(err?.message || 'Failed to load admin data');
+      setError(errorFromUnknown(err, 'Failed to load admin data'));
     }
   };
 
@@ -91,7 +92,7 @@ export default function AdminDashboardPage() {
       await loadData();
       setShowMarginForm(false);
     } catch (err: any) {
-      setError(err?.message || 'Failed to set margin');
+      setError(errorFromUnknown(err, 'Failed to set margin'));
     }
   };
 
@@ -103,7 +104,7 @@ export default function AdminDashboardPage() {
       });
       await loadData();
     } catch (err: any) {
-      setError(err?.message || 'Failed to review vendor interest');
+      setError(errorFromUnknown(err, 'Failed to review vendor interest'));
     }
   };
 

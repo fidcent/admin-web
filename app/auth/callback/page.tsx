@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { completeAdminLogin } from '@/lib/oidc';
+import { errorFromUnknown } from '@/lib/errors';
 
 function AdminCallbackContent() {
   const router = useRouter();
@@ -30,7 +31,7 @@ function AdminCallbackContent() {
         router.replace('/dashboard');
       })
       .catch((err) => {
-        setMessage(err?.message || 'Signin callback failed');
+        setMessage(errorFromUnknown(err, 'Signin callback failed'));
       });
   }, [router, searchParams]);
 

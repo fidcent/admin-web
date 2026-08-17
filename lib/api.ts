@@ -1,4 +1,5 @@
 import { getAdminSession, getEnv } from './oidc';
+import { parseApiError } from './errors';
 
 export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> {
   const session = getAdminSession();
@@ -16,7 +17,7 @@ export async function adminApi<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+    throw new Error(parseApiError(text, `Request failed: ${response.status}`));
   }
 
   return response.json() as Promise<T>;

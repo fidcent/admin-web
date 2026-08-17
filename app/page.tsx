@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { startAdminLogin } from '@/lib/oidc';
+import { errorFromUnknown } from '@/lib/errors';
 
 export default function AdminSigninPage() {
   const [identifier, setIdentifier] = useState('');
@@ -16,7 +17,7 @@ export default function AdminSigninPage() {
     try {
       await startAdminLogin(identifier, password);
     } catch (err: any) {
-      setError(err?.message || 'Signin failed');
+      setError(errorFromUnknown(err, 'Signin failed'));
       setLoading(false);
     }
   };
