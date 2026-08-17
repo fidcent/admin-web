@@ -6,6 +6,8 @@ export type AdminSession = {
   idToken?: string;
   role?: string;
   fidId?: string;
+  /** Unix timestamp (ms) when the access token expires */
+  expiresAt?: number;
 };
 
 const STORAGE_KEY = 'admin_web_session';
@@ -109,6 +111,7 @@ export async function completeAdminLogin(code: string, state: string): Promise<A
     idToken: tokens.id_token,
     role: info.role,
     fidId: info.fid_id,
+    expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -131,4 +134,64 @@ export function getAdminSession(): AdminSession | null {
 
 export function clearAdminSession(): void {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+export async function refreshAdminSession(): Promise<AdminSession | null> {
+  const session = getAdminSession();
+  if (!session?.refreshToken) {
+    clearAdminSession();
+    return null;
+  }
+
+  const { identityBaseUrl, clientId } = getEnv();
+  if (!clientId) {
+    clearAdminSession();
+    return null;
+  }
+
+  const tokenResp = await fetch(`${identityBaseUrl}/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token: session.refreshToken,
+    }),
+  });
+
+  if (!tokenResp.ok) {
+    clearAdminSession();
+    return null;
+  }
+
+  const tokenJson = await tokenResp.json();
+  const tokens = tokenJson?.data ?? tokenJson;
+  const accessToken = tokens?.access_token;
+  if (!accessToken) {
+    clearAdminSession();
+    return null;
+  }
+
+  const updated: AdminSession = {
+    ...session,
+    accessToken,
+    refreshToken: tokens.refresh_token || session.refreshToken,
+    idToken: tokens.id_token || session.idToken,
+    expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
+  };
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/** Return a valid session, refreshing the access token when expired or near expiry. */
+export async function ensureAdminSession(): Promise<AdminSession | null> {
+  const session = getAdminSession();
+  if (!session?.accessToken) return null;
+
+  const expiresAt = session.expiresAt ?? 0;
+  const shouldRefresh = !!expiresAt && Date.now() >= expiresAt - 60_000;
+
+  if (!shouldRefresh) return session;
+  return refreshAdminSession();
 }

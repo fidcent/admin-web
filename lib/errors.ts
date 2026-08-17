@@ -5,6 +5,8 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   'Missing or invalid authorization header': 'Your session expired. Please sign in again.',
   'Authorization code already used': 'This sign-in link was already used. Please sign in again.',
   'Invalid or expired authorization code': 'Sign-in expired. Please try again.',
+  'Invalid token': 'Your session expired. Please sign in again.',
+  'Invalid or expired refresh_token': 'Your session expired. Please sign in again.',
 };
 
 function firstString(...values: unknown[]): string | undefined {
