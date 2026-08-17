@@ -22,6 +22,25 @@ type Interest = {
   status: string;
 };
 
+type VendorOption = {
+  _id: string;
+  name: string;
+  slug: string;
+  status: string;
+};
+
+type CatalogItemOption = {
+  _id: string;
+  name: string;
+  slug: string;
+  itemType: string;
+};
+
+const OUTSOURCE_CATEGORIES = [
+  { slug: 'PHYSICAL_GIFT', label: 'Physical gifts' },
+  { slug: 'BOOKED_SERVICE', label: 'Booked services' },
+] as const;
+
 const SCOPE_STYLES: Record<string, string> = {
   global: 'scope-global',
   category: 'scope-category',
@@ -39,6 +58,8 @@ const STATUS_STYLES: Record<string, string> = {
 export default function AdminDashboardPage() {
   const [margins, setMargins] = useState<MarginRule[]>([]);
   const [interests, setInterests] = useState<Interest[]>([]);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItemOption[]>([]);
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] = useState<'overview' | 'margins' | 'vendors'>('overview');
   const [showMarginForm, setShowMarginForm] = useState(false);
@@ -60,13 +81,29 @@ export default function AdminDashboardPage() {
 
   const loadData = async () => {
     try {
-      const marginResp = await adminApi<any>('/admin/margins');
-      const interestResp = await adminApi<any>('/vendor-interest?status=pending');
+      const [marginResp, interestResp, vendorResp] = await Promise.all([
+        adminApi<any>('/admin/margins'),
+        adminApi<any>('/vendor-interest?status=pending'),
+        adminApi<any>('/admin/vendors'),
+      ]);
       setMargins(marginResp?.data?.margins || []);
       setInterests(interestResp?.data?.interests || []);
+      setVendors(vendorResp?.data?.vendors || []);
       setError('');
     } catch (err: any) {
       setError(errorFromUnknown(err, 'Failed to load admin data'));
+    }
+  };
+
+  const loadCatalogItems = async (categorySlug?: string, vendorId?: string) => {
+    try {
+      const params = new URLSearchParams({ limit: '200' });
+      if (categorySlug) params.set('categorySlug', categorySlug);
+      if (vendorId) params.set('vendorId', vendorId);
+      const resp = await adminApi<any>(`/admin/catalog-items?${params.toString()}`);
+      setCatalogItems(resp?.data?.items || []);
+    } catch (err: any) {
+      setError(errorFromUnknown(err, 'Failed to load catalog items'));
     }
   };
 
@@ -78,6 +115,12 @@ export default function AdminDashboardPage() {
     }
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (marginForm.scope === 'item') {
+      loadCatalogItems(marginForm.categorySlug || undefined, marginForm.vendorId || undefined);
+    }
+  }, [marginForm.scope, marginForm.categorySlug, marginForm.vendorId]);
 
   const onSetMargin = async (e: FormEvent) => {
     e.preventDefault();
@@ -306,7 +349,15 @@ export default function AdminDashboardPage() {
                         <span>Scope</span>
                         <select
                           value={marginForm.scope}
-                          onChange={(e) => setMarginForm({ ...marginForm, scope: e.target.value })}
+                          onChange={(e) =>
+                            setMarginForm({
+                              ...marginForm,
+                              scope: e.target.value,
+                              categorySlug: '',
+                              vendorId: '',
+                              itemId: '',
+                            })
+                          }
                         >
                           <option value="global">Global</option>
                           <option value="category">Category</option>
@@ -327,32 +378,96 @@ export default function AdminDashboardPage() {
                         />
                       </label>
                     </div>
-                    <div className="fields cols-2">
+
+                    {marginForm.scope === 'category' && (
                       <label>
-                        <span>Category slug</span>
-                        <input
-                          placeholder="Only for category scope"
+                        <span>Category</span>
+                        <select
+                          required
                           value={marginForm.categorySlug}
                           onChange={(e) => setMarginForm({ ...marginForm, categorySlug: e.target.value })}
-                        />
+                        >
+                          <option value="">Select category…</option>
+                          {OUTSOURCE_CATEGORIES.map((category) => (
+                            <option key={category.slug} value={category.slug}>
+                              {category.label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
+                    )}
+
+                    {marginForm.scope === 'vendor' && (
                       <label>
-                        <span>Vendor ID</span>
-                        <input
-                          placeholder="Only for vendor scope"
+                        <span>Vendor</span>
+                        <select
+                          required
                           value={marginForm.vendorId}
                           onChange={(e) => setMarginForm({ ...marginForm, vendorId: e.target.value })}
-                        />
+                        >
+                          <option value="">Select vendor…</option>
+                          {vendors.map((vendor) => (
+                            <option key={vendor._id} value={vendor._id}>
+                              {vendor.name} ({vendor.status})
+                            </option>
+                          ))}
+                        </select>
                       </label>
-                    </div>
-                    <label>
-                      <span>Item ID</span>
-                      <input
-                        placeholder="Only for item scope"
-                        value={marginForm.itemId}
-                        onChange={(e) => setMarginForm({ ...marginForm, itemId: e.target.value })}
-                      />
-                    </label>
+                    )}
+
+                    {marginForm.scope === 'item' && (
+                      <>
+                        <div className="fields cols-2">
+                          <label>
+                            <span>Filter by category (optional)</span>
+                            <select
+                              value={marginForm.categorySlug}
+                              onChange={(e) =>
+                                setMarginForm({ ...marginForm, categorySlug: e.target.value, itemId: '' })
+                              }
+                            >
+                              <option value="">All partner categories</option>
+                              {OUTSOURCE_CATEGORIES.map((category) => (
+                                <option key={category.slug} value={category.slug}>
+                                  {category.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Filter by vendor (optional)</span>
+                            <select
+                              value={marginForm.vendorId}
+                              onChange={(e) =>
+                                setMarginForm({ ...marginForm, vendorId: e.target.value, itemId: '' })
+                              }
+                            >
+                              <option value="">All vendors</option>
+                              {vendors.map((vendor) => (
+                                <option key={vendor._id} value={vendor._id}>
+                                  {vendor.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <label>
+                          <span>Catalog item</span>
+                          <select
+                            required
+                            value={marginForm.itemId}
+                            onChange={(e) => setMarginForm({ ...marginForm, itemId: e.target.value })}
+                          >
+                            <option value="">Select item…</option>
+                            {catalogItems.map((item) => (
+                              <option key={item._id} value={item._id}>
+                                {item.name} ({item.itemType === 'PHYSICAL_GIFT' ? 'Physical gift' : 'Booked service'})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    )}
                     <label>
                       <span>Notes</span>
                       <textarea
